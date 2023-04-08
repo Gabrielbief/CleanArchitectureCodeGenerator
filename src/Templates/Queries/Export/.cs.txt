@@ -3,18 +3,21 @@
 
 
 using {selectns}.{nameofPlural}.DTOs;
+using {selectns}.{nameofPlural}.Queries.Pagination;
 
 namespace {namespace};
 
-public class Export{nameofPlural}Query : IRequest<byte[]>
-    {
-       public string OrderBy { get; set; } = "Id";
-       public string SortDirection { get; set; } = "Desc";
-       public string Keyword { get; set; } = String.Empty;
-    }
+public class Export{nameofPlural}Query : OrderableFilterBase, IRequest<Result<byte[]>>
+{
+        [CompareTo("Name", "Description")] // <-- This filter will be applied to Name or Description.
+        [StringFilterOptions(StringFilterOption.Contains)]
+        public string? Keyword { get; set; }
+        [CompareTo(typeof(Search{nameofPlural}WithListView), "Id")]
+        public {itemname}ListView ListView { get; set; } = {itemname}ListView.All;
+}
     
 public class Export{nameofPlural}QueryHandler :
-         IRequestHandler<Export{nameofPlural}Query, byte[]>
+         IRequestHandler<Export{nameofPlural}Query, Result<byte[]>>
 {
         private readonly IApplicationDbContext _context;
         private readonly IMapper _mapper;
@@ -34,11 +37,10 @@ public class Export{nameofPlural}QueryHandler :
             _localizer = localizer;
         }
 
-        public async Task<byte[]> Handle(Export{nameofPlural}Query request, CancellationToken cancellationToken)
+        public async Task<Result<byte[]>> Handle(Export{nameofPlural}Query request, CancellationToken cancellationToken)
         {
             // TODO: Implement Export{nameofPlural}QueryHandler method 
-            var data = await _context.{nameofPlural}.Specify(new {nameofPlural}ExportSpecification(request))
-                       .OrderBy($"{request.OrderBy} {request.SortDirection}")
+            var data = await _context.{nameofPlural}.ApplyOrder(request)
                        .ProjectTo<{itemname}Dto>(_mapper.ConfigurationProvider)
                        .ToListAsync(cancellationToken);
             var result = await _excelService.ExportAsync(data,
@@ -48,20 +50,6 @@ public class Export{nameofPlural}QueryHandler :
                     {exportFuncExpression}
                 }
                 , _localizer["{nameofPlural}"]);
-            return result;
+            return await Result<byte[]>.SuccessAsync(result);;
         }
-}
-
-
-public class {nameofPlural}ExportSpecification : Specification<{itemname}>
-{
-    public {nameofPlural}ExportSpecification(Export{nameofPlural}Query request)
-    {
-        Criteria = q => q.Name != null;
-        if (!string.IsNullOrEmpty(request.Keyword))
-        {
-            And(x => x.Name.Contains(request.Keyword));
-        }
-       
-    }
 }
